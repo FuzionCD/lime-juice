@@ -200,8 +200,8 @@ When compiling, juice reads settings from the `(meta ...)` block at the top of t
 
 | Flag | Description |
 |------|-------------|
-| `-d`, `--decode` | Decode image files to PNG (GP4, GPC) or GIF (GPA) |
-| `-c`, `--compile` | Compile PNG to GP4/GPC, or GIF to GPA |
+| `-d`, `--decode` | Decode image files to PNG (GP4, GPC), GIF (GPA), or a folder of PNGs (CSR) |
+| `-c`, `--compile` | Compile PNG to GP4/GPC, GIF to GPA, or a decoded CSR folder back to CSR |
 | `-v`, `--version` | Show version |
 | `-h`, `--help` | Show usage help |
 
@@ -210,9 +210,9 @@ When compiling, juice reads settings from the `(meta ...)` block at the top of t
 | Flag | Description |
 |------|-------------|
 | `-f`, `--force` | Overwrite existing output files |
-| `-o`, `--output PATH` | Specify output file path (single file only) |
+| `-o`, `--output PATH` | Specify output file (or CSR folder) path. Single input file only. |
 | `-F`, `--format FMT` | Target format when compiling PNG: `gp4` or `gpc`. Default: `gpc`. Ignored if the output file extension already specifies a format. |
-| `-p`, `--palette PATH` | Palette source (a GPC file) for GPA decode. If not specified, juice-img searches the parent directory for a matching GPC file. |
+| `-p`, `--palette PATH` | Palette source (a GPC file) for GPA and CSR decode. If not specified, juice-img searches the parent directory for a matching GPC file. |
 | `-W`, `--force-width N` | Override canvas width for GP4 decode. Default: 640. Only applies to GP4 files. |
 
 ### Supported Formats
@@ -222,12 +222,21 @@ When compiling, juice reads settings from the `(meta ...)` block at the top of t
 | **GP4** | `.gp4` | `.png` | 4-pixel column format with move-to-front + RLE compression. Width must be a multiple of 4; non-conforming images are truncated with a warning during encode. |
 | **GPC** | `.gpc` | `.png` | Indexed color with palette, XOR + interlacing compression. |
 | **GPA** | `.gpa` | `.gif` | Multi-frame animation. Requires a palette (embedded or from a separate GPC file). |
+| **CSR** | `.csr`, `.dat` | `.png` folder | Mouse cursors and icons. Requires a palette from a separate GPC file. |
 
 #### GPA Notes
 
 - When decoding GPA files, if the animation has no embedded palette, juice-img searches for a GPC file with the same name in the parent directory tree. Use `-p` to specify one manually.
 - If no palette is found at all, the resulting GIF will come out entirely black. If your decoded GPA looks all black, this is why.
 - The last frame of a decoded GIF may contain metadata (original negative offsets) used for lossless re-encoding. Do not edit this frame if you plan to re-encode the GPA.
+
+#### CSR Notes
+
+- Decoding `TJ.CSR` creates a folder `TJ/` with one PNG per cursor plus a `csr.txt` manifest. Compiling the folder (`juice-img -c TJ`) will rebuild `TJ.CSR`.
+- Hotspots can be changed in `csr.txt`. Don't change the entry or plane numbers.
+- Cursors can be resized, but the width must be a multiple of 8. Cursors with 1 or 2 planes can only use colors 0-1 or 0-3.
+- CSR files have no palette of their own. juice-img searches for a GPC file with the same name in the parent directory tree, which will usually find nothing, so use `-p` to pick one of the game's GPC files. Without one, the PNGs will come out grayscale.
+- AI5 `mouse.dat` files are a different format and aren't supported.
 
 ---
 

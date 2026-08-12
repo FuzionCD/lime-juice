@@ -20,12 +20,16 @@
 #include "codec/gp4/gp4.h"
 #include "codec/gpc/gpc.h"
 #include "codec/gpa/gpa.h"
+#include "codec/csr/csr.h"
 #include "image/png_io.h"
 #include "image/gif_io.h"
 
+#include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -35,7 +39,7 @@ static const char* TITLE = "juice-img";
 static const char* VERSION = "v0.3.0 (lime-juice img ver.)";
 
 // detect image format from file contents
-enum class ImageFormat { GP4, GPC, GPA, Unknown };
+enum class ImageFormat { GP4, GPC, GPA, CSR, Unknown };
 
 static ImageFormat detect_format(const std::vector<uint8_t>& data,
                                   const std::string& path) {
@@ -60,6 +64,11 @@ static ImageFormat detect_format(const std::vector<uint8_t>& data,
         return ImageFormat::GP4;
     }
 
+    // CSR banks use several extensions (.csr, .dat), so detect by structure
+    if (csr::detect(data)) {
+        return ImageFormat::CSR;
+    }
+
     return ImageFormat::Unknown;
 }
 
@@ -81,11 +90,11 @@ static bool iequals(const std::string& a, const std::string& b) {
     return true;
 }
 
-// try to find a palette source for a GPA file.
+// try to find a palette source for a GPA or CSR file.
 // goes up one directory and recursively searches for a GPC file with
 // the same stem, since game directory layouts vary widely.
-static std::string find_palette_for_gpa(const std::string& gpa_path) {
-    fs::path p(gpa_path);
+static std::string find_palette_gpc(const std::string& path) {
+    fs::path p(path);
     std::string target = p.stem().string() + ".gpc";
     fs::path search_root = p.parent_path().parent_path();
 
@@ -128,20 +137,103 @@ static std::array<Rgb, 16> read_gpc_palette(const std::string& path) {
     return palette;
 }
 
+// manifest stored next to the frame PNGs of a decoded CSR bank
+static const char* CSR_MANIFEST = "csr.txt";
+
+// write each CSR frame as a PNG, plus a small file w/ cursor metadata:
+// the original file name, the layout, and each frame's entry + plane count + hotspot
+static void save_csr_dir(const fs::path& dir, const std::string& name, const csr::File& file) {
+    fs::create_directories(dir);
+    std::ofstream manifest(dir / CSR_MANIFEST);
+
+    if (!manifest.is_open()) {
+        throw std::runtime_error("cannot write " + (dir / CSR_MANIFEST).string());
+    }
+
+    manifest << "; juice-img CSR manifest\n"
+             << "; frame lines: entry planes hotspot-x hotspot-y png\n"
+             << "file " << name << "\n"
+             << "layout " << (file.container ? "container" : "bare") << " " << (file.mc ? "mc" : "plain") << "\n";
+    int sub = 0;
+
+    for (size_t i = 0; i < file.frames.size(); i++) {
+        const auto& frame = file.frames[i];
+
+        // frames sharing an entry get a frame suffix, e.g. 0001_03.png
+        sub = (i > 0 && file.frames[i - 1].entry == frame.entry) ? sub + 1 : 0;
+        bool shared = sub > 0 || (i + 1 < file.frames.size() && file.frames[i + 1].entry == frame.entry);
+        char png[16];
+
+        if (shared) {
+            std::snprintf(png, sizeof(png), "%04d_%02d.png", frame.entry, sub);
+        } else {
+            std::snprintf(png, sizeof(png), "%04d.png", frame.entry);
+        }
+
+        save_png((dir / png).string(), frame.img);
+        manifest << frame.entry << " " << frame.planes << " " << frame.img.x << " " << frame.img.y << " " << png << "\n";
+    }
+}
+
+// read back a directory written by save_csr_dir, returning the original file name
+static std::string load_csr_dir(const fs::path& dir, csr::File& file) {
+    std::ifstream manifest(dir / CSR_MANIFEST);
+
+    if (!manifest.is_open()) {
+        throw std::runtime_error("no " + std::string(CSR_MANIFEST) + " manifest in " + dir.string());
+    }
+
+    std::string name = dir.filename().string() + ".csr";
+    std::string line;
+
+    while (std::getline(manifest, line)) {
+        std::istringstream in(line);
+        std::string key;
+
+        if (!(in >> key) || key[0] == ';') {
+            continue;
+        }
+
+        if (key == "file") {
+            in >> name;
+        } else if (key == "layout") {
+            std::string layout, records;
+            in >> layout >> records;
+            file.container = layout != "bare";
+            file.mc = records == "mc";
+        } else {
+            csr::Frame frame;
+            int x = 0, y = 0;
+            std::string png;
+
+            if (!(std::istringstream(key) >> frame.entry) || !(in >> frame.planes >> x >> y >> png)) {
+                throw std::runtime_error("bad manifest line: " + line);
+            }
+
+            frame.img = load_png((dir / png).string());
+            frame.img.x = static_cast<int16_t>(x);
+            frame.img.y = static_cast<int16_t>(y);
+            file.frames.push_back(std::move(frame));
+        }
+    }
+
+    return name;
+}
+
 static void print_usage() {
     std::cerr <<
         "usage: " << TITLE << " <command> [options] <files...>\n"
         "\n"
         "commands:\n"
-        "  -d, --decode    decode GP4/GPC to PNG, GPA to GIF\n"
-        "  -c, --compile   compile (encode) PNG to GP4/GPC, GIF to GPA\n"
+        "  -d, --decode    decode GP4/GPC to PNG, GPA to GIF, CSR to a PNG folder\n"
+        "  -c, --compile   compile (encode) PNG to GP4/GPC, GIF to GPA, CSR folder to CSR\n"
         "  -v, --version   show version\n"
         "\n"
         "options:\n"
         "  -f, --force         overwrite existing output files\n"
-        "  -o, --output PATH   output file path (single file only)\n"
+        "  -o, --output PATH   output file (or CSR folder) path (single file only)\n"
         "  -F, --format FMT    target format for compile: gp4, gpc, gpa\n"
-        "  -p, --palette PATH  palette source (GPC file) for GPA decode\n"
+        "  -p, --palette PATH  palette source (GPC file) for GPA/CSR decode\n"
         "  -W, --force-width N canvas width override for GP4 decode (default 640)\n"
         "  -x, --force-x N     x position override for compile\n"
         "  -y, --force-y N     y position override for compile\n"
@@ -221,7 +313,7 @@ static void decode_file(const std::string& path, bool force,
             std::string pal_source = palette_path;
 
             if (pal_source.empty()) {
-                pal_source = find_palette_for_gpa(path);
+                pal_source = find_palette_gpc(path);
             }
 
             if (!pal_source.empty()) {
@@ -258,6 +350,39 @@ static void decode_file(const std::string& path, bool force,
         }
 
         return;
+    } else if (fmt == ImageFormat::CSR) {
+        auto file = csr::decode(data);
+
+        // csr files have no built in palette. if a GPC file is not given or found, the frames will come out grayscale
+        std::string pal_source = palette_path.empty() ? find_palette_gpc(path) : palette_path;
+
+        if (!pal_source.empty()) {
+            auto palette = read_gpc_palette(pal_source);
+
+            for (auto& frame : file.frames) {
+                frame.img.palette = palette;
+            }
+        }
+
+        // a CSR bank becomes a folder of PNGs named after the file
+        out = output_override.empty() ? fs::path(path).replace_extension().string() : output_override;
+
+        if (!force && fs::exists(out)) {
+            print_color("b-white", stem);
+            println_color("b-red", " ! output folder already exists (use -f to overwrite)");
+            return;
+        }
+
+        save_csr_dir(out, fs::path(path).filename().string(), file);
+        print_color("b-white", fs::path(out).filename().string());
+
+        if (pal_source.empty()) {
+            println_color("b-yellow", "/ (warning: no palette found, output is grayscale; use -p to specify a GPC file)");
+        } else {
+            println_color("b-green", "/");
+        }
+
+        return;
     } else {
         throw std::runtime_error("unrecognized image format");
     }
@@ -274,7 +399,28 @@ static void encode_file(const std::string& path, const std::string& format_str,
     std::string out_ext = format_str.empty()
         ? get_ext(output_override) : "." + format_str;
 
-    if (ext == ".png") {
+    if (fs::is_directory(path)) {
+        // a folder written by a CSR decode; tolerate a trailing slash
+        fs::path dir(path);
+
+        if (!dir.has_filename()) {
+            dir = dir.parent_path();
+        }
+
+        csr::File file;
+        std::string name = load_csr_dir(dir, file);
+        std::string out = output_override.empty() ? (dir.parent_path() / name).string() : output_override;
+
+        if (!force && fs::exists(out)) {
+            print_color("b-white", stem);
+            println_color("b-red", " ! output file already exists (use -f to overwrite)");
+            return;
+        }
+
+        write_file(out, csr::encode(file));
+        print_color("b-white", get_stem(out));
+        println_color("b-green", get_ext(out));
+    } else if (ext == ".png") {
         auto img = load_png(path);
 
         if (force_x >= 0) { img.x = static_cast<int16_t>(force_x); }
