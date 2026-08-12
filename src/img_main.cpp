@@ -36,7 +36,7 @@
 namespace fs = std::filesystem;
 
 static const char* TITLE = "juice-img";
-static const char* VERSION = "v0.3.0 (lime-juice img ver.)";
+static const char* VERSION = "v0.4.0 (lime-juice img ver.)";
 
 // detect image format from file contents
 enum class ImageFormat { GP4, GPC, GPA, CSR, Unknown };
