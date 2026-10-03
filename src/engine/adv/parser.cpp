@@ -155,13 +155,6 @@ AstNode Parser::lex_chr2(uint8_t c1, uint8_t c2) {
     });
 }
 
-AstNode Parser::lex_chr2_plus(uint8_t c1, uint8_t c2) {
-    return AstNode::make_list("chr-sjis2+", {
-        AstNode::make_integer(c1),
-        AstNode::make_integer(c2)
-    });
-}
-
 // --- token parsers ---
 
 AstNode Parser::parse_reg_star() {
@@ -347,7 +340,7 @@ AstNode Parser::parse_chr() {
     if (b >= 0xEB && b <= 0xEF) {
         uint8_t c1 = consume();
         uint8_t c2 = consume();
-        return lex_chr2_plus(c1, c2);
+        return lex_chr2(c1, c2);
     }
 
     throw ParseError("expected character token, got 0x" +

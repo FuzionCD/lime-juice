@@ -26,11 +26,14 @@
 // block at once.
 //
 // Important! if you're using the ADV engine and you add a character whose SJIS
-// lead byte is in the 0xEB-0xEF range, it gets processed as a game-specific
-// character which may not have a Unicode equivalent and thus decodes as (text-raw).
-// To force these characters to decode, bypass the sjis2+/gaiji path by removing
-// the '+' signs from the two 'chr-sjis2+' list calls in src/engine/adv/parser.cpp.
+// lead byte is in the 0xEB-0xEF range, it decodes in normal text but stays raw
+// inside (str) strings. to force those to decode too, bypass the sjis2+/gaiji path
+// by removing the '+' from the 'chr-sjis2+' list call in parse_chrs_escaped() in
+// src/engine/adv/parser.cpp.
 // Note: May cause character encoding problems. hack at your own risk.
+//
+// don't map a character that already has a standard SJIS code (like ・ at 0x8145):
+// mappings work both ways, so every use of it would then encode to your new code.
 
 void register_charset_pc98(Charset& cs) {
     // box drawing characters at kuten row 12, starting at column 4
