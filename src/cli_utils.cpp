@@ -141,6 +141,10 @@ void write_file(const std::string& path, const std::vector<uint8_t>& data) {
     }
 
     file.write(reinterpret_cast<const char*>(data.data()), data.size());
+    file.close();
+    if (!file) {
+        throw std::runtime_error("cannot write file: " + path);
+    }
 }
 
 // for globbing: applies multiple replacements in a single pass (first match wins at each position)

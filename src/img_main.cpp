@@ -277,9 +277,7 @@ static void decode_file(const std::string& path, bool force,
         out_ext = ".png";
 
         if (!force && fs::exists(out)) {
-            print_color("b-white", stem);
-            println_color("b-red", " ! output file already exists (use -f to overwrite)");
-            return;
+            throw std::runtime_error("output file already exists (use -f to overwrite)");
         }
 
         save_png(out, img);
@@ -289,9 +287,7 @@ static void decode_file(const std::string& path, bool force,
         out_ext = ".png";
 
         if (!force && fs::exists(out)) {
-            print_color("b-white", stem);
-            println_color("b-red", " ! output file already exists (use -f to overwrite)");
-            return;
+            throw std::runtime_error("output file already exists (use -f to overwrite)");
         }
 
         save_png(out, img);
@@ -331,9 +327,7 @@ static void decode_file(const std::string& path, bool force,
         out_ext = ".gif";
 
         if (!force && fs::exists(out)) {
-            print_color("b-white", stem);
-            println_color("b-red", " ! output file already exists (use -f to overwrite)");
-            return;
+            throw std::runtime_error("output file already exists (use -f to overwrite)");
         }
 
         bool has_meta = save_gif(out, frames);
@@ -439,9 +433,7 @@ static void encode_file(const std::string& path, const std::string& format_str,
         }
 
         if (!force && fs::exists(out)) {
-            print_color("b-white", stem);
-            println_color("b-red", " ! output file already exists (use -f to overwrite)");
-            return;
+            throw std::runtime_error("output file already exists (use -f to overwrite)");
         }
 
         if (out_ext == ".gp4") {
@@ -477,9 +469,7 @@ static void encode_file(const std::string& path, const std::string& format_str,
             ? replace_ext(path, ".gpa") : output_override;
 
         if (!force && fs::exists(out)) {
-            print_color("b-white", stem);
-            println_color("b-red", " ! output file already exists (use -f to overwrite)");
-            return;
+            throw std::runtime_error("output file already exists (use -f to overwrite)");
         }
 
         auto frames = load_gif(path);
@@ -501,7 +491,7 @@ static void encode_file(const std::string& path, const std::string& format_str,
     }
 }
 
-int main(int argc, char* argv[]) {
+static int run_cli(int argc, char* argv[]) {
     enable_ansi_console();
 
     Command command = Command::None;
@@ -566,7 +556,7 @@ int main(int argc, char* argv[]) {
 
     if (command == Command::None) {
         print_usage();
-        return 0;
+        return 1;
     }
 
     auto paths = expand_globs(file_args);
@@ -602,4 +592,13 @@ int main(int argc, char* argv[]) {
     }
 
     return errors > 0 ? 1 : 0;
+}
+
+int main(int argc, char* argv[]) {
+    try {
+        return run_cli(argc, argv);
+    } catch (const std::exception& e) {
+        std::cerr << "error: " << e.what() << std::endl;
+        return 1;
+    }
 }

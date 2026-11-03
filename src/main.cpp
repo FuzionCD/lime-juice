@@ -29,6 +29,7 @@
 #include "engine/ai5/compiler.h"
 #include "engine/adv/compiler.h"
 
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -94,7 +95,7 @@ static void show_presets() {
     }
 }
 
-static void decompile_file(const std::string& path, Config& cfg, bool force,
+static bool decompile_file(const std::string& path, Config& cfg, bool force,
                            const std::string& output_override = "") {
     // output: use override or replace .mes with .rkt
     std::string outname;
@@ -113,18 +114,19 @@ static void decompile_file(const std::string& path, Config& cfg, bool force,
     print_color("b-white", out_stem);
     std::cout.flush();
 
-    // check if output exists
-    if (!force && fs::exists(outname)) {
-        println_color("b-red", " ! output file already exists (use -f to overwrite)");
-        return;
-    }
-
     try {
+        // check if output exists
+        if (!force && fs::exists(outname)) {
+            println_color("b-red", " ! output file already exists (use -f to overwrite)");
+            return false;
+        }
+
         AstNode ast = AstNode::make_list("mes", {});
         std::vector<std::string> parse_warnings;
 
         if (cfg.engine == EngineType::ADV) {
             bool should_retry = false;
+            std::exception_ptr first_error;
             size_t input_bytes = fs::file_size(path);
 
             try {
@@ -158,6 +160,7 @@ static void decompile_file(const std::string& path, Config& cfg, bool force,
                     }
                 }
             } catch (const std::exception&) {
+                first_error = std::current_exception();
                 should_retry = true;
             }
 
@@ -180,9 +183,13 @@ static void decompile_file(const std::string& path, Config& cfg, bool force,
                 }
 
                 if (retry_segs > 0) {
+                    first_error = nullptr;
                     ast = std::move(retry.ast);
                     parse_warnings = std::move(retry.warnings);
                 }
+            }
+            if (first_error) {
+                std::rethrow_exception(first_error);
             }
         } else if (cfg.engine == EngineType::AI1) {
             ast = ai1::load_mes(path, cfg);
@@ -214,6 +221,9 @@ static void decompile_file(const std::string& path, Config& cfg, bool force,
 
         out << output;
         out.close();
+        if (!out) {
+            throw std::runtime_error("cannot write to: " + outname);
+        }
 
         if (segment_count == 0 && input_size > 4) {
             println_color("b-yellow", ".rkt (warning: no segments parsed from " +
@@ -239,9 +249,11 @@ static void decompile_file(const std::string& path, Config& cfg, bool force,
         for (const auto& w : parse_warnings) {
             std::cerr << "\033[93m  " << w << "\033[0m" << std::endl;
         }
+        return true;
     } catch (const std::exception& e) {
         println_color("b-red", "!");
         std::cerr << "  " << e.what() << std::endl;
+        return false;
     }
 }
 
@@ -280,13 +292,13 @@ static void apply_meta_config(const AstNode& ast, Config& cfg) {
     }
 }
 
-static void compile_file(const std::string& path, Config& cfg, bool force,
+static bool compile_file(const std::string& path, Config& cfg, bool force,
                          bool wrap, const std::string& output_override = "") {
 
     if (!has_extension(path, ".rkt")) {
         print_color("b-white", fs::path(path).filename().string());
-        println_color("b-yellow", "?");
-        return;
+        println_color("b-red", " ! expected an .rkt input file");
+        return false;
     }
 
     // output: use override or replace .rkt with .mes
@@ -298,12 +310,12 @@ static void compile_file(const std::string& path, Config& cfg, bool force,
     print_color("b-white", out_stem);
     std::cout.flush();
 
-    if (!force && fs::exists(outname)) {
-        println_color("b-red", " ! output file already exists (use -f to overwrite)");
-        return;
-    }
-
     try {
+        if (!force && fs::exists(outname)) {
+            println_color("b-red", " ! output file already exists (use -f to overwrite)");
+            return false;
+        }
+
         // read rkt source
         std::ifstream f(path);
 
@@ -351,15 +363,20 @@ static void compile_file(const std::string& path, Config& cfg, bool force,
 
         out.write(reinterpret_cast<const char*>(compiled.data()), compiled.size());
         out.close();
+        if (!out) {
+            throw std::runtime_error("cannot write to: " + outname);
+        }
 
         println_color("b-green", ".mes");
+        return true;
     } catch (const std::exception& e) {
         println_color("b-red", "!");
         std::cerr << "  " << e.what() << std::endl;
+        return false;
     }
 }
 
-int main(int argc, char* argv[]) {
+static int run_cli(int argc, char* argv[]) {
     enable_ansi_console();
 
     Command command = Command::None;
@@ -480,11 +497,14 @@ int main(int argc, char* argv[]) {
                 std::cout << std::endl;
             }
 
+            bool success = true;
             for (const auto& path : paths) {
-                decompile_file(path, cfg, force, output_path);
+                if (!decompile_file(path, cfg, force, output_path)) {
+                    success = false;
+                }
             }
 
-            return 0;
+            return success ? 0 : 1;
         }
 
         case Command::Compile: {
@@ -506,16 +526,28 @@ int main(int argc, char* argv[]) {
                 return 1;
             }
 
+            bool success = true;
             for (const auto& path : paths) {
-                compile_file(path, cfg, force, auto_wrap, output_path);
+                if (!compile_file(path, cfg, force, auto_wrap, output_path)) {
+                    success = false;
+                }
             }
 
-            return 0;
+            return success ? 0 : 1;
         }
 
         case Command::None:
         default:
             print_usage();
-            return 0;
+            return 1;
+    }
+}
+
+int main(int argc, char* argv[]) {
+    try {
+        return run_cli(argc, argv);
+    } catch (const std::exception& e) {
+        std::cerr << "error: " << e.what() << std::endl;
+        return 1;
     }
 }

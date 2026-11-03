@@ -25,3 +25,4 @@ CMakeUserPresets.json
 *.gpa
 
 tests/*
+!tests/test_exit_codes.py
