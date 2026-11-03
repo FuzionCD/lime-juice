@@ -19,6 +19,7 @@
 #include "cli_utils.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -59,6 +60,14 @@ void println_color(const std::string& color, const std::string& text) {
     std::cout << std::endl;
 }
 
+#ifdef _WIN32
+static UINT original_output_cp = 0;
+
+static void restore_console_cp() {
+    SetConsoleOutputCP(original_output_cp);
+}
+#endif
+
 void enable_ansi_console() {
 #ifdef _WIN32
     HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -69,6 +78,15 @@ void enable_ansi_console() {
         if (GetConsoleMode(hOut, &mode)) {
             SetConsoleMode(hOut, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
         }
+    }
+
+    // all output is UTF-8, so switch the console to it; otherwise non-ASCII text is
+    // drawn in the local code page and comes out garbled. the console is shared with
+    // the parent shell, so put the original code page back on exit.
+    original_output_cp = GetConsoleOutputCP();
+
+    if (original_output_cp != CP_UTF8 && SetConsoleOutputCP(CP_UTF8)) {
+        std::atexit(restore_console_cp);
     }
 #endif
 }
