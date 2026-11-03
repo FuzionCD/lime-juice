@@ -25,6 +25,10 @@ void register_charset_europe(Charset& cs) {
     // chains pc98 as base
     register_charset_pc98(cs);
 
+    // additional european punctuation at kuten row 47, starting at column 92
+    // (charset* 47 92 #\« #\» #\¡)
+    cs.register_kuten_range_str(47, 91, u8"—«»¡");
+
     // ASCII at kuten row 48, starting at column 1
     // (charset* 48 1 #\! #\" ... #\~)
     cs.register_kuten_range(48, 1, {
