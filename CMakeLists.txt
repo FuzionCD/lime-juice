@@ -95,6 +95,8 @@ add_library(juice_img_lib STATIC
     src/codec/gpa/gpa_encode.cpp
     src/codec/gp4/gp4_decode.cpp
     src/codec/gp4/gp4_encode.cpp
+    src/codec/csr/csr_decode.cpp
+    src/codec/csr/csr_encode.cpp
     third_party/lodepng/lodepng.cpp
     third_party/lecram/gifdec.c
     third_party/lecram/gifenc.c
