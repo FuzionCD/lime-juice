@@ -42,6 +42,8 @@ void register_charset_europe(Charset& cs) {
         U'n', U'o', U'p', U'q', U'r', U's', U't', U'u', U'v', U'w', U'x', U'y', U'z',
         U'{', U'|', U'}', U'~',
     });
+    // space at kuten row 11, column 1
+    cs.register_kuten_range(11, 1, { U' ' });
 
     // european accented characters at kuten row 49, starting at column 1
     // (charset* 49 1 #\Ǎ #\ǎ ... #\έ)
