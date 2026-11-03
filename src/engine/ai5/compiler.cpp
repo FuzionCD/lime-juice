@@ -468,9 +468,13 @@ static void emit_text(ByteWriter& out, const AstNode& node, const Config& cfg,
             emit_text_chars(out, child.str_val, cs, cfg, dict_lookup);
         } else if (child.is_list("number")) {
             emit_stmt(out, child, cfg, cs, dict_lookup);
-        } else if (child.is_list("proc") || child.is_integer()) {
-            emit_stmt(out, child, cfg, cs, dict_lookup);
-        } else if (child.is_list("call")) {
+        } else if (child.is_integer()) {
+            // a bare number is a fused protagonist name: (proc n)
+            emit_stmt(out, AstNode::make_list("proc", {child}), cfg, cs, dict_lookup);
+        } else if (child.is_variable()) {
+            // a bare variable is a fused protagonist name: (call V)
+            emit_stmt(out, AstNode::make_list("call", {child}), cfg, cs, dict_lookup);
+        } else if (child.is_list("proc") || child.is_list("call")) {
             emit_stmt(out, child, cfg, cs, dict_lookup);
         } else if (child.is_character()) {
             auto sjis_opt = cs.char_to_sjis(child.char_val);

@@ -562,8 +562,9 @@ AstNode fuse_text_proc_call(const AstNode& node, const Config& cfg) {
                 continue;
             }
 
+            // a bare variable in text means (call V), so don't unwrap a proc on a variable
             if (child.children[0].is_variable() && cfg.is_protag(child.children[0].var_val)) {
-                new_children.push_back(AstNode::make_list("text", {child.children[0]}));
+                new_children.push_back(AstNode::make_list("text", {child}));
                 continue;
             }
         }
