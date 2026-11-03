@@ -39,7 +39,7 @@
 namespace fs = std::filesystem;
 
 static const char* TITLE = "juice";
-static const char* VERSION = "v0.2.3 (lime-juice)";
+static const char* VERSION = "v0.2.4 (lime-juice)";
 
 // thresholds for detecting suspiciously small decompiler output
 static const size_t SUSPECT_OUTPUT_MAX = 256;
