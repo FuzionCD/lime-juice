@@ -67,9 +67,9 @@ void register_charset_english(Charset& cs) {
         U'\u3010', U'\u3011',         // 【 】
         U'\uFF70',                     // ｰ
     });
-    // (charset* 48 2 #\”)
+    // (charset* 9 2 #\”)
     cs.register_kuten_range(9, 2, { U'\u201D' });
-    // (charset* 48 7 #\’)
+    // (charset* 9 7 #\’)
     cs.register_kuten_range(9, 7, { U'\u2019' });
 
     cs.set_fontwidth(1);
