@@ -56,10 +56,10 @@ void register_charset_english(Charset& cs) {
     cs.register_kuten_range(11, 2, { U'\u301E', U'\u301F' });
 
     // various brackets and symbols at kuten row 11, column 80
-    // (charset* 11 80 #\´ #\¨ #\' #\" #\〔 ... #\ｰ)
+    // (charset* 11 80 #\´ #\¨ #\‘ #\“ #\〔 ... #\ｰ)
     cs.register_kuten_range(11, 80, {
         U'\u00B4', U'\u00A8',         // ´ ¨
-        U'\u2018', U'\u201C',         // ' "
+        U'\u2018', U'\u201C',         // ‘ “
         U'\u3014', U'\u3015',         // 〔 〕
         U'\u3008', U'\u3009',         // 〈 〉
         U'\u300A', U'\u300B',         // 《 》
@@ -67,6 +67,10 @@ void register_charset_english(Charset& cs) {
         U'\u3010', U'\u3011',         // 【 】
         U'\uFF70',                     // ｰ
     });
+    // (charset* 48 2 #\”)
+    cs.register_kuten_range(9, 2, { U'\u201D' });
+    // (charset* 48 7 #\’)
+    cs.register_kuten_range(9, 7, { U'\u2019' });
 
     cs.set_fontwidth(1);
     cs.set_space_char(U' ');
