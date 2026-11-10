@@ -394,10 +394,10 @@ std::optional<char32_t> Charset::sjis_to_char_iconv(int sjis_int) const {
     char* outptr = outbuf;
 
 // linux iconv uses char**, win-iconv uses const char**
-#ifdef _WIN32
-    const char* inptr = inbuf;
-#else
+#if defined(__MINGW32__) || defined(__MINGW64__) || !defined(_WIN32)
     char* inptr = inbuf;
+#else
+    const char* inptr = inbuf;
 #endif
 
     // reset iconv state
@@ -468,10 +468,10 @@ std::optional<std::vector<int>> Charset::char_to_sjis_iconv(char32_t ch) const {
     char* outptr = outbuf;
 
 // linux iconv uses char**, win-iconv uses const char**
-#ifdef _WIN32
-    const char* inptr = inbuf;
-#else
+#if defined(__MINGW32__) || defined(__MINGW64__) || !defined(_WIN32)
     char* inptr = inbuf;
+#else
+    const char* inptr = inbuf;
 #endif
 
     // reset iconv state
