@@ -65,7 +65,6 @@ private:
     // decode character tokens
     static AstNode lex_chr1(uint8_t c);
     static AstNode lex_chr2(uint8_t c1, uint8_t c2);
-    static AstNode lex_chr2_plus(uint8_t c1, uint8_t c2);
 
     // --- token parsers ---
 

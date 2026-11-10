@@ -95,6 +95,8 @@ add_library(juice_img_lib STATIC
     src/codec/gpa/gpa_encode.cpp
     src/codec/gp4/gp4_decode.cpp
     src/codec/gp4/gp4_encode.cpp
+    src/codec/csr/csr_decode.cpp
+    src/codec/csr/csr_encode.cpp
     third_party/lodepng/lodepng.cpp
     third_party/lecram/gifdec.c
     third_party/lecram/gifenc.c
@@ -107,13 +109,6 @@ target_link_libraries(juice-img PRIVATE juice_img_lib cli_utils)
 
 if(MINGW)
     target_link_options(juice-img PRIVATE -static)
-endif()
-
-# tests (optional, enabled with -DBUILD_TESTING=ON)
-option(BUILD_TESTING "Build unit tests" OFF)
-if(BUILD_TESTING)
-    enable_testing()
-    add_subdirectory(tests)
 endif()
 
 install(TARGETS juice juice-img)

@@ -284,6 +284,8 @@ When `--protag` is used during decompilation, proc/call instructions get fused i
 
 The `0` between strings represents `(proc 0)`, which inserts the protagonist's name. When compiled, this expands back to separate instructions.
 
+A variable in the same spot represents a call instead: `(text "【" Z "】Hello.")` compiles to `(call Z)`. A proc on a variable is instead written out as `(proc Z)`, which would take Z's value and run the proc that matches.
+
 ### Displaying Numbers in Text
 
 The `number` command inserts a numeric value inline within text output:

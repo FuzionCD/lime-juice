@@ -389,10 +389,13 @@ static void emit_text(ByteWriter& out, const AstNode& node, const Config& cfg, C
         } else if (child.is_list("number")) {
             // (number expr) embedded in text
             emit_stmt(out, child, cfg, cs);
-        } else if (child.is_list("proc") || child.is_integer()) {
-            // proc call embedded in text
-            emit_stmt(out, child, cfg, cs);
-        } else if (child.is_list("call")) {
+        } else if (child.is_integer()) {
+            // a bare number is a fused protagonist name: (proc n)
+            emit_stmt(out, AstNode::make_list("proc", {child}), cfg, cs);
+        } else if (child.is_variable()) {
+            // a bare variable is a fused protagonist name: (call V)
+            emit_stmt(out, AstNode::make_list("call", {child}), cfg, cs);
+        } else if (child.is_list("proc") || child.is_list("call")) {
             emit_stmt(out, child, cfg, cs);
         } else if (child.is_character()) {
             // single character

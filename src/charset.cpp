@@ -159,7 +159,20 @@ std::optional<char32_t> Charset::sjis_to_char(const std::vector<int>& sjis_pair)
 
     // fall back to iconv if available
     int sjis_int = sjis_to_integer(sjis_pair);
-    return sjis_to_char_iconv(sjis_int);
+    auto decoded = sjis_to_char_iconv(sjis_int);
+
+    // CP932 has a few duplicate chars. Most will never appear in printable text,
+    // but if we run into one that does just check it to make sure the encoding will
+    // stay consistent.
+    if (decoded.has_value() && j1 >= 0xEB && j1 <= 0xEF) {
+        auto re = char_to_sjis(*decoded);
+
+        if (!re.has_value() || sjis_to_integer(*re) != sjis_int) {
+            return std::nullopt;
+        }
+    }
+
+    return decoded;
 }
 
 std::optional<std::vector<int>> Charset::char_to_sjis(char32_t ch) const {
@@ -327,19 +340,23 @@ void Charset::set_break_char(char32_t c) {
 // --- iconv ---
 
 void Charset::ensure_iconv() const {
+    // use CP932 (Windows-31J), not bare SHIFT_JIS: PC-98 games target the
+    // Microsoft SJIS dialect with the NEC/IBM extension rows. glibc's SHIFT_JIS
+    // is only JIS X 0208 and would disagree with the Windows build's win_iconv
+    // SHIFT_JIS (which is CP932). explicitly specifying CP932 gets rid of this issue.
     if (iconv_sjis_to_utf8_ == nullptr) {
-        iconv_sjis_to_utf8_ = iconv_open("UTF-8", "SHIFT_JIS");
+        iconv_sjis_to_utf8_ = iconv_open("UTF-8", "CP932");
 
         if (iconv_sjis_to_utf8_ == (iconv_t)-1) {
-            throw std::runtime_error("failed to open iconv SHIFT_JIS -> UTF-8");
+            throw std::runtime_error("failed to open iconv CP932 -> UTF-8");
         }
     }
 
     if (iconv_utf8_to_sjis_ == nullptr) {
-        iconv_utf8_to_sjis_ = iconv_open("SHIFT_JIS", "UTF-8");
+        iconv_utf8_to_sjis_ = iconv_open("CP932", "UTF-8");
 
         if (iconv_utf8_to_sjis_ == (iconv_t)-1) {
-            throw std::runtime_error("failed to open iconv UTF-8 -> SHIFT_JIS");
+            throw std::runtime_error("failed to open iconv UTF-8 -> CP932");
         }
     }
 }
@@ -377,10 +394,10 @@ std::optional<char32_t> Charset::sjis_to_char_iconv(int sjis_int) const {
     char* outptr = outbuf;
 
 // linux iconv uses char**, win-iconv uses const char**
-#if defined(__MINGW32__) || defined(__MINGW64__) || !defined(_WIN32)
-    char* inptr = inbuf;
-#else
+#ifdef _WIN32
     const char* inptr = inbuf;
+#else
+    char* inptr = inbuf;
 #endif
 
     // reset iconv state
@@ -451,10 +468,10 @@ std::optional<std::vector<int>> Charset::char_to_sjis_iconv(char32_t ch) const {
     char* outptr = outbuf;
 
 // linux iconv uses char**, win-iconv uses const char**
-#if defined(__MINGW32__) || defined(__MINGW64__) || !defined(_WIN32)
-    char* inptr = inbuf;
-#else
+#ifdef _WIN32
     const char* inptr = inbuf;
+#else
+    char* inptr = inbuf;
 #endif
 
     // reset iconv state

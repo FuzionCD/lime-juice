@@ -19,6 +19,7 @@
 #include "compiler.h"
 #include "../../byte_writer.h"
 #include "../../charset.h"
+#include "../../sexp_writer.h"
 #include "../../utf8.h"
 
 #include <stdexcept>
@@ -398,8 +399,28 @@ static void emit_param(ByteWriter& out, const AstNode& node, const Config& cfg, 
         const auto& inner = node.children[0];
 
         if (inner.is_symbol()) {
-            // quoted SJIS integer like '33450
-            int sjis_int = std::stoi(inner.str_val);
+            const std::string& sym = inner.str_val;
+
+            // a stray 'br/'pg as a command arg means "end this command, then
+            // break/frame", same as a following (text-break)/(text-frame).
+            // emitting the cmd byte here lands it right after the other params.
+            if (sym == "br") {
+                out.emit(0xA5);
+                return;
+            }
+
+            if (sym == "pg") {
+                out.emit(0xA6);
+                return;
+            }
+
+            // otherwise it must be a quoted SJIS integer like '33450
+            if (sym.empty() || !(std::isdigit(static_cast<unsigned char>(sym[0])) || sym[0] == '-')) {
+                throw std::runtime_error("cannot encode quoted symbol '" + sym +
+                    " as a parameter (expected a number, 'br, or 'pg)");
+            }
+
+            int sjis_int = std::stoi(sym);
             auto pair = Charset::integer_to_sjis(sjis_int);
 
             if (pair.size() >= 2) {
@@ -1254,6 +1275,13 @@ static void emit_stmt(ByteWriter& out, const AstNode& node, const Config& cfg, C
     // ── tagless lists: emit each child ──────────────────────────
 
     if (tag.empty()) {
+        // if the node has no children () or doesn't start with a list (e.g. unnamed commands like (cmd:209)),
+        // then it's probably a raw char/str/int value that leaked into the tag. reject it as invalid because
+        // it's syntactically meaningless.
+        if (node.children.empty() || !node.children[0].is_list()) {
+            throw std::runtime_error("node '" + SexpWriter().format(node) + "' does not start with a command or operator");
+        }
+
         for (const auto& child : node.children) {
             emit_param(out, child, cfg, cs);
         }
