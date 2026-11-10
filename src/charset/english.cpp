@@ -69,8 +69,8 @@ void register_charset_english(Charset& cs) {
     });
     // (charset* 48 2 #\”)
     // (charset* 48 7 #\’)
-    cs.register_kuten_range(48, 2, { U"\u201D" });
-    cs.register_kuten_range(48, 7, { U"\u2019" });
+    cs.register_kuten_range(48, 2, { U'\u201D' });
+    cs.register_kuten_range(48, 7, { U'\u2019' });
 
     cs.set_fontwidth(1);
     cs.set_space_char(U' ');
